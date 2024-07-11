@@ -22,7 +22,7 @@ class Env(object):
         self.n_actions = 1
         self.timeWindow = 1 # if you want to consider informaiton 
         #from previous seconds, you can use timewindow > 1
-        self.penalty = 1.5 # penalty for collisions
+        self.penalty = 5 # penalty for collisions
         self.n_features = 6*self.timeWindow
         self.TTC_threshold = TTC_threshold
 
@@ -109,7 +109,7 @@ class Env(object):
             
         return TLcolor, [g,r,g_next,g_next+cycle-phase_time[2]+phase_time[0]]
     
-    def step(self, action, total_fuel, dis, data, TTC_violate, fTTC_total):#, del_a
+    def step(self, action, total_fuel, dis, data, TTC_violate, fTTC_total, del_a):
         def fuel_model(v, a):
             R = 1.2256/25.92*0.3*(0.85*2.015*1.748)*(v*3.6)**2+2000*9.8067*1.75/1000*(0.0328*v*3.6+4.575)+2000*9.8067*0
             P = max(0,(R+1.04*2000*a)/3600/0.9*v*3.6)
@@ -249,7 +249,7 @@ class Env(object):
         # fJerk=-2*(abs(jerk)/((4+4)/0.04))**(1/4)#+0.5#2* best
         # fJerk = -2*(np.count_nonzero(self.SimJerkData[:self.timeStep-1] > 1.5|self.SimJerkData[:self.timeStep-1] < -1.5))/(self.timeStep-1)
         experienced_jerk = self.SimJerkData[:self.timeStep-1]
-        fJerk = -2*np.count_nonzero(abs(experienced_jerk) > 1.5)/(self.timeStep-1)-2*(abs(jerk)/((4+4)/0.04))**(1/4)
+        fJerk = -5*np.count_nonzero(abs(experienced_jerk) > 1.5)/(self.timeStep-1)
         
         # if jerk<=5 and jerk>=-5:
         #     fJerk = -1/5*abs(jerk)+1
@@ -259,13 +259,13 @@ class Env(object):
         #     fJerk = 0
         
         #fAcc = - (action**2)/4**2
-        fAcc = -(abs(action)/4)**(1/2)
+        fAcc = -4*(abs(action)/4)**(1/2)-4*(abs(jerk)/((4+4)/0.04))**(1/4)
         self.lastAction = action
 
         if self.TTC >= 0 and self.TTC <= self.TTC_threshold:
             TTC_violate+=1
-            fTTC = 1.5*((self.TTC/self.TTC_threshold)**2-1)
-            fTTC_total += 1.5*((self.TTC/self.TTC_threshold)**2-1)
+            fTTC = 5*((self.TTC/self.TTC_threshold)**2-1)
+            fTTC_total += 5*((self.TTC/self.TTC_threshold)**2-1)
             #fTTC = np.log(self.TTC/self.TTC_threshold) 
         else:
             TTC_violate+=0
@@ -284,12 +284,12 @@ class Env(object):
             fHdw = (np.exp(-(np.log(hdw) - mu) ** 2 / (2 * sigma ** 2)) / (hdw * sigma * np.sqrt(2 * np.pi)))
         '''
         self.traveledTime = (data[self.timeStep-1,5]-data[0,5])
-        fHdw =1.5*(dis / (data[self.timeStep-1,5]-data[0,5]))**2/(50/3.6)**2 #(dis / (data[self.timeStep-1,5]-data[0,5]))/(50/3.6)#
+        fHdw =4*(dis / (data[self.timeStep-1,5]-data[0,5]))**2/(50/3.6)**2 #(dis / (data[self.timeStep-1,5]-data[0,5]))/(50/3.6)#
         try:
-            fFuel = (math.log(dis/(total_fuel*1000)+1,30))**5#25 30
+            fFuel = 6*(math.log(dis/(total_fuel*1000)+1,35))**5#25 30
         except:
             print('dis,total_fuel', dis,total_fuel)
-        fIDM = -(abs(acc_IDM - action)/8)**0.5*1.5    
+        fIDM = -(abs(acc_IDM - action)/8)**0.5*1.5   
         # fIDM = (-(abs(acc_IDM - action)/8)**0.5)
         # -(abs(v_IDM - svSpd)/(50/3.6))**0.5-(abs(dis_IDM - dis)/(50/3.6*step_duration)**0.5)
         # if IDM_apply:
@@ -300,10 +300,10 @@ class Env(object):
         
         # calculate the reward
         if space<0:
-            reward =  fCol + fFuel + fTL + fAcc + fHdw+fJerk+fIDM
+            reward = fJerk+fAcc + fFuel +fTL +fHdw+fCol +fIDM
             # reward = -1
         else:
-            reward =  fTTC + fFuel + fTL + fAcc + fHdw+fJerk+fIDM
+            reward = fJerk+fAcc + fFuel +fTL +fHdw+fTTC + fIDM
         #reward = fFuel+ fHdw
         # record reward info
         
